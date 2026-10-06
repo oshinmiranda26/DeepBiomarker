@@ -53,3 +53,31 @@ def test_sequences_are_time_ordered_and_padded():
         t = time[i, :lengths[i], 0]
         assert (np.diff(t) <= 0).all()          # oldest visit first: years-before-index decreases
         assert codes[i, lengths[i]:].sum() == 0  # padding is empty
+
+
+def test_static_features_standardized_with_train_stats():
+    from deepbiomarker.dataset import FEATURE_SETS, static_matrix
+    p, _, _ = small()
+    tr, _, te = split_patients(p)
+    X, mean, std = static_matrix(tr, FEATURE_SETS["ehr_sdoh_prs"])
+    assert np.allclose(X.mean(axis=0), 0, atol=1e-4)
+    Xte, _, _ = static_matrix(te, FEATURE_SETS["ehr_sdoh_prs"], mean, std)
+    assert Xte.shape[1] == X.shape[1]
+
+
+def test_logreg_contributions_recover_planted_factors():
+    from sklearn.linear_model import LogisticRegression
+    from deepbiomarker.contributions import contributions, lr_from_arrays, score
+    from deepbiomarker.dataset import FEATURE_SETS, build_sequences, static_matrix
+    p, v, _ = generate(n_patients=4000, seed=11)
+    v["codes"] = v["codes"].str.split(";")
+    tr, _, te = split_patients(p)
+    vocab = build_vocab(v, tr.patient_id)
+    cols = FEATURE_SETS["ehr_sdoh_prs"]
+    s_tr, m, sd = static_matrix(tr, cols)
+    s_te = static_matrix(te, cols, m, sd)[0]
+    c, t, l = build_sequences(v, tr, vocab)
+    lr = LogisticRegression(max_iter=3000).fit(np.hstack([c.max(1), (c * (t <= 180 / 365)).max(1), s_tr]), tr.label)
+    ce, te_, le = build_sequences(v, te, vocab)
+    _, metrics = score(contributions(lambda *a: lr_from_arrays(lr, *a), ce, te_, le, s_te, vocab, cols, sd))
+    assert metrics["precision_at_k"] >= 0.6 and metrics["spearman_vs_truth"] > 0.3

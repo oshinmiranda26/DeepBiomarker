@@ -1,17 +1,37 @@
 {
   "oracle_true_risk": {
-    "auroc": 0.8024,
-    "auprc": 0.5151,
-    "brier": 0.1058
+    "auroc": 0.8163,
+    "auprc": 0.5483,
+    "brier": 0.1069
   },
-  "logreg_ever": {
-    "auroc": 0.7298,
-    "auprc": 0.3339,
-    "brier": 0.123
+  "logreg_ever_ehr": {
+    "auroc": 0.73,
+    "auprc": 0.3581,
+    "brier": 0.1275
   },
-  "logreg_ever_plus_recent": {
-    "auroc": 0.8005,
-    "auprc": 0.513,
-    "brier": 0.1061
+  "logreg_ever_plus_recent_ehr": {
+    "auroc": 0.79,
+    "auprc": 0.4993,
+    "brier": 0.1134
+  },
+  "logreg_ever_ehr_sdoh": {
+    "auroc": 0.7488,
+    "auprc": 0.3886,
+    "brier": 0.1245
+  },
+  "logreg_ever_plus_recent_ehr_sdoh": {
+    "auroc": 0.8038,
+    "auprc": 0.5296,
+    "brier": 0.1099
+  },
+  "logreg_ever_ehr_sdoh_prs": {
+    "auroc": 0.7627,
+    "auprc": 0.4127,
+    "brier": 0.1219
+  },
+  "logreg_ever_plus_recent_ehr_sdoh_prs": {
+    "auroc": 0.816,
+    "auprc": 0.5472,
+    "brier": 0.1071
   }
 }

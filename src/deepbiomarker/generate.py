@@ -52,7 +52,19 @@ TRUE_EFFECTS = {
     "PX_psychotherapy_session": -1.2,  # protective
     "RX_lithium": -1.0,                # protective
 }
-INTERCEPT = -3.6
+INTERCEPT = -3.7
+
+# Social determinants of health (SDoH) and genetics: patient-level features, as in DeepBiomarker2,
+# which added community-level SDoH to EMR data. Effects are in log-odds per 1 SD (continuous) or 0 -> 1 (binary).
+STATIC_EFFECTS = {
+    "adi_percentile": 0.35,        # area deprivation index (neighborhood disadvantage), per SD
+    "housing_instability": 0.6,
+    "unemployed": 0.4,
+    "prs": 0.4,                    # polygenic risk score, per SD
+    "food_insecurity": 0.0,        # noise: correlated with disadvantage but no direct effect
+    "rural": 0.0,                  # noise
+}
+ADI_SD = 100 / np.sqrt(12)  # SD of a uniform 0-100 percentile
 
 
 def _patient_codes(rng, n_visits):
@@ -64,8 +76,16 @@ def _patient_codes(rng, n_visits):
     return visits
 
 
+def static_logit(s):
+    """Ground-truth log-odds contribution of SDoH and genetic features."""
+    return (STATIC_EFFECTS["adi_percentile"] * (s["adi_percentile"] - 50) / ADI_SD
+            + STATIC_EFFECTS["housing_instability"] * s["housing_instability"]
+            + STATIC_EFFECTS["unemployed"] * s["unemployed"]
+            + STATIC_EFFECTS["prs"] * s["prs"])
+
+
 def risk_logit(visits, age):
-    """Ground-truth log-odds: recent events count fully, older ones at OLD_WEIGHT."""
+    """Ground-truth log-odds from visits: recent events count fully, older ones at OLD_WEIGHT."""
     weight = {}
     for days_before, codes in visits:
         w = 1.0 if days_before <= RECENT_DAYS else OLD_WEIGHT
@@ -82,13 +102,22 @@ def generate(n_patients=N_PATIENTS, seed=SEED):
         pid = f"P{i:05d}"
         age = int(rng.integers(18, 85))
         visits = _patient_codes(rng, int(rng.integers(3, 21)))
-        p = 1 / (1 + np.exp(-risk_logit(visits, age)))
-        patients.append({"patient_id": pid, "age": age, "sex": str(rng.choice(["F", "M"])),
+        adi = float(rng.uniform(0, 100))
+        disadvantaged = adi / 100  # more deprived neighborhoods -> more housing and food insecurity
+        static = {"adi_percentile": round(adi, 1),
+                  "housing_instability": int(rng.random() < 0.04 + 0.16 * disadvantaged),
+                  "food_insecurity": int(rng.random() < 0.05 + 0.20 * disadvantaged),
+                  "unemployed": int(rng.random() < 0.10),
+                  "rural": int(rng.random() < 0.25),
+                  "prs": round(float(rng.normal()), 3)}
+        p = 1 / (1 + np.exp(-(risk_logit(visits, age) + static_logit(static))))
+        patients.append({"patient_id": pid, "age": age, "sex": str(rng.choice(["F", "M"])), **static,
                          "true_risk": round(float(p), 4), "label": int(rng.random() < p)})
         for v, (days_before, codes) in enumerate(visits):
             rows.append({"patient_id": pid, "visit_index": v, "days_before_index": days_before,
                          "codes": ";".join(codes)})
-    effects = pd.DataFrame([{"code": c, "true_log_odds": w} for c, w in TRUE_EFFECTS.items()])
+    effects = pd.DataFrame([{"feature": c, "true_log_odds": w} for c, w in TRUE_EFFECTS.items()]
+                           + [{"feature": c, "true_log_odds": w} for c, w in STATIC_EFFECTS.items()])
     return pd.DataFrame(patients), pd.DataFrame(rows), effects
 
 

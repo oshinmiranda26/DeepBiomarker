@@ -1,0 +1,14 @@
+{
+  "logreg": {
+    "n_true_factors": 13,
+    "precision_at_k": 1.0,
+    "sign_accuracy": 1.0,
+    "spearman_vs_truth": 0.823
+  },
+  "gru": {
+    "n_true_factors": 13,
+    "precision_at_k": 1.0,
+    "sign_accuracy": 1.0,
+    "spearman_vs_truth": 0.816
+  }
+}

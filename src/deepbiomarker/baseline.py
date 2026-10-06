@@ -1,9 +1,9 @@
-"""Baseline models: logistic regression on bag-of-codes.
+"""Baseline models: logistic regression on bag-of-codes plus patient-level features.
 
-Two versions:
-- "ever" features: did the code ever appear in the 3-year window (ignores timing)
-- "ever + recent" features: adds a second flag for the last 180 days (hand-engineered timing)
-The sequence model later learns timing on its own; these baselines show how much timing matters.
+Visit-history features:
+- "ever": did the code appear in the 3-year window (ignores timing)
+- "ever + recent": adds a flag for the last 180 days (hand-engineered timing)
+Patient-level feature sets: ehr (age), ehr_sdoh (+ social determinants), ehr_sdoh_prs (+ polygenic risk score)
 
 Run:  python -m deepbiomarker.baseline
 """
@@ -14,7 +14,8 @@ import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
 
-from deepbiomarker.dataset import bag_of_codes, build_vocab, load, split_patients
+from deepbiomarker.dataset import (FEATURE_SETS, bag_of_codes, build_vocab, load, split_patients,
+                                   static_matrix)
 
 RESULTS = Path("results")
 
@@ -24,12 +25,11 @@ def evaluate(y, p):
             "brier": round(brier_score_loss(y, p), 4)}
 
 
-def features(visits, patients, vocab, with_recent):
+def code_features(visits, patients, vocab, with_recent):
     X = bag_of_codes(visits, patients, vocab)
     if with_recent:
         X = np.hstack([X, bag_of_codes(visits, patients, vocab, recent_days=180)])
-    age = (patients.age.to_numpy(dtype=np.float32)[:, None] - 50) / 20
-    return np.hstack([X, age])
+    return X
 
 
 def main():
@@ -39,17 +39,20 @@ def main():
     print(f"train {len(train)} | val {len(val)} | test {len(test)} | vocab {len(vocab)} codes | "
           f"test prevalence {test.label.mean():.1%}")
 
-    ceiling = evaluate(test.label, test.true_risk)  # the best any model could do on this data
-    results = {"oracle_true_risk": ceiling}
-    for name, recent in [("logreg_ever", False), ("logreg_ever_plus_recent", True)]:
-        model = LogisticRegression(max_iter=2000, C=1.0)
-        model.fit(features(visits, train, vocab, recent), train.label)
-        results[name] = evaluate(test.label, model.predict_proba(features(visits, test, vocab, recent))[:, 1])
+    results = {"oracle_true_risk": evaluate(test.label, test.true_risk)}  # the best any model could do
+    for fs, cols in FEATURE_SETS.items():
+        s_tr, mean, std = static_matrix(train, cols)
+        s_te, _, _ = static_matrix(test, cols, mean, std)
+        for name, recent in [("ever", False), ("ever_plus_recent", True)]:
+            X_tr = np.hstack([code_features(visits, train, vocab, recent), s_tr])
+            X_te = np.hstack([code_features(visits, test, vocab, recent), s_te])
+            model = LogisticRegression(max_iter=3000).fit(X_tr, train.label)
+            results[f"logreg_{name}_{fs}"] = evaluate(test.label, model.predict_proba(X_te)[:, 1])
 
     RESULTS.mkdir(exist_ok=True)
     (RESULTS / "baseline_metrics.json").write_text(json.dumps(results, indent=2))
     for k, v in results.items():
-        print(f"{k:<26} {v}")
+        print(f"{k:<36} {v}")
 
 
 if __name__ == "__main__":

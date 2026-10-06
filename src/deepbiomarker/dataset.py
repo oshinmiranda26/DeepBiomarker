@@ -10,6 +10,20 @@ from sklearn.model_selection import train_test_split
 
 DATA = Path("data")
 
+FEATURE_SETS = {  # patient-level features added to the visit history
+    "ehr": ["age"],
+    "ehr_sdoh": ["age", "adi_percentile", "housing_instability", "food_insecurity", "unemployed", "rural"],
+    "ehr_sdoh_prs": ["age", "adi_percentile", "housing_instability", "food_insecurity", "unemployed", "rural", "prs"],
+}
+
+
+def static_matrix(patients, cols, mean=None, std=None):
+    """Standardized patient-level features; pass training mean/std when transforming val/test."""
+    X = patients[cols].to_numpy(dtype=np.float32)
+    mean = X.mean(axis=0) if mean is None else mean
+    std = X.std(axis=0) + 1e-6 if std is None else std
+    return (X - mean) / std, mean, std
+
 
 def load(data_dir=DATA):
     patients = pd.read_csv(Path(data_dir) / "patients.csv")
