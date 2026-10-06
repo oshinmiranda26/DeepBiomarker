@@ -1,0 +1,17 @@
+{
+  "oracle_true_risk": {
+    "auroc": 0.8433,
+    "auprc": 0.5887,
+    "brier": 0.0952
+  },
+  "logreg_ever": {
+    "auroc": 0.7746,
+    "auprc": 0.3952,
+    "brier": 0.1146
+  },
+  "logreg_ever_plus_recent": {
+    "auroc": 0.8322,
+    "auprc": 0.5491,
+    "brier": 0.0986
+  }
+}
