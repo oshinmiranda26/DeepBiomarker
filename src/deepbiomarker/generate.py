@@ -93,8 +93,12 @@ def generate(n_patients=N_PATIENTS, seed=SEED):
 
 
 def main():
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--n-patients", type=int, default=N_PATIENTS)
+    args = ap.parse_args()
     DATA.mkdir(exist_ok=True)
-    patients, visits, effects = generate()
+    patients, visits, effects = generate(n_patients=args.n_patients)
     patients.to_csv(DATA / "patients.csv", index=False)
     visits.to_csv(DATA / "visits.csv", index=False)
     effects.to_csv(DATA / "true_effects.csv", index=False)
