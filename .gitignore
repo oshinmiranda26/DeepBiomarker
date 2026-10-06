@@ -9,3 +9,5 @@ __pycache__/
 .agents/
 .claude/
 data/
+models/
+models/

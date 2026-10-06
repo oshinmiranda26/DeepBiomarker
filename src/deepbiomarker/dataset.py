@@ -42,3 +42,28 @@ def bag_of_codes(visits, patients, vocab, recent_days=None):
             if c in vocab:
                 X[row[pid], vocab[c]] = 1.0
     return X
+
+
+def build_sequences(visits, patients, vocab, max_visits=20):
+    """Arrays for the sequence model, one row per patient, visits in time order (oldest first).
+
+    codes:   (n_patients, max_visits, n_codes) multi-hot codes per visit
+    time:    (n_patients, max_visits, 1) years before the index date (0 = index date)
+    lengths: (n_patients,) number of real visits; the rest is zero padding
+    """
+    n, v = len(patients), len(vocab)
+    codes = np.zeros((n, max_visits, v), dtype=np.float32)
+    time = np.zeros((n, max_visits, 1), dtype=np.float32)
+    lengths = np.zeros(n, dtype=np.int64)
+    row = {pid: i for i, pid in enumerate(patients.patient_id)}
+    sub = visits[visits.patient_id.isin(row)].sort_values(["patient_id", "days_before_index"], ascending=[True, False])
+    for pid, group in sub.groupby("patient_id", sort=False):
+        i = row[pid]
+        group = group.tail(max_visits)  # keep the most recent visits if a patient has more
+        for j, (days, cs) in enumerate(zip(group.days_before_index, group.codes)):
+            time[i, j, 0] = days / 365.0
+            for c in cs:
+                if c in vocab:
+                    codes[i, j, vocab[c]] = 1.0
+        lengths[i] = len(group)
+    return codes, time, lengths

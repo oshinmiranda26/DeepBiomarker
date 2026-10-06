@@ -1,0 +1,8 @@
+{
+  "auroc": 0.7898,
+  "auprc": 0.4222,
+  "brier": 0.1106,
+  "best_val_auroc": 0.7288,
+  "epochs_run": 20,
+  "train_seconds": 4.2
+}

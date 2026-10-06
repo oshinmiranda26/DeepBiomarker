@@ -41,3 +41,15 @@ def test_planted_effects_exist_in_vocabulary():
     p, v, _ = small()
     vocab = build_vocab(v, p.patient_id)
     assert set(TRUE_EFFECTS) <= set(vocab)
+
+
+def test_sequences_are_time_ordered_and_padded():
+    from deepbiomarker.dataset import build_sequences
+    p, v, _ = small()
+    vocab = build_vocab(v, p.patient_id)
+    codes, time, lengths = build_sequences(v, p.head(20), vocab)
+    assert codes.shape[0] == 20 and lengths.min() >= 3
+    for i in range(20):
+        t = time[i, :lengths[i], 0]
+        assert (np.diff(t) <= 0).all()          # oldest visit first: years-before-index decreases
+        assert codes[i, lengths[i]:].sum() == 0  # padding is empty
