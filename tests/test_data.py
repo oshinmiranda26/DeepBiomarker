@@ -81,3 +81,33 @@ def test_logreg_contributions_recover_planted_factors():
     ce, te_, le = build_sequences(v, te, vocab)
     _, metrics = score(contributions(lambda *a: lr_from_arrays(lr, *a), ce, te_, le, s_te, vocab, cols, sd))
     assert metrics["precision_at_k"] >= 0.6 and metrics["spearman_vs_truth"] > 0.3
+
+
+def test_calibration_metrics_detect_miscalibration():
+    from deepbiomarker.audit import calibration
+    rng = np.random.default_rng(0)
+    p = rng.uniform(0.05, 0.6, 20000)
+    y = (rng.random(20000) < p).astype(int)
+    oe, slope = calibration(y, p)
+    assert 0.95 < oe < 1.05 and 0.85 < slope < 1.15        # well calibrated
+    oe2, _ = calibration(y, np.clip(p * 2, 0, 0.99))         # predictions doubled -> overestimates risk
+    assert oe2 < 0.7
+
+
+def test_audit_runs_and_reports_every_subgroup():
+    from deepbiomarker.audit import audit, subgroups
+    p, _, _ = generate(n_patients=3000, seed=2)
+    rows = audit("oracle", p.label.to_numpy(), p.true_risk.to_numpy(), p.true_risk.to_numpy(), subgroups(p))
+    assert {"overall", "sex", "age group", "neighborhood deprivation", "housing instability"} <= set(rows.attribute)
+    assert (rows.obs_exp_ratio.between(0.7, 1.4)).all()      # the true risk should be roughly calibrated
+
+
+def test_recalibration_fixes_overprediction():
+    from deepbiomarker.audit import calibration, recalibrator
+    rng = np.random.default_rng(1)
+    p = rng.uniform(0.05, 0.5, 20000)
+    y = (rng.random(20000) < p).astype(int)
+    inflated = np.clip(p * 1.3, 0, 0.99)                      # a model that over-predicts by 30%
+    fix = recalibrator(y[:10000], inflated[:10000])            # fit on "validation" half
+    oe, _ = calibration(y[10000:], fix(inflated[10000:]))      # evaluate on "test" half
+    assert 0.93 < oe < 1.07
