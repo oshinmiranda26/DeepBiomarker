@@ -92,6 +92,26 @@ contribution rankings should be read as "importance in this population," not as 
   50,000 before comparing models.
 - **Ablations make claims testable.** "The GRU learns timing" was checked by removing timing and measuring the drop.
 
+## Responsible AI: subgroup audit and model card
+
+A model can look good overall and still fail a group of patients, so every model is audited by sex, age group,
+neighborhood deprivation, and housing instability for discrimination (AUROC with bootstrap 95% intervals) and
+calibration (observed/expected events and calibration slope). The full results are in
+`results/subgroup_audit.csv`, and a [model card](MODEL_CARD.md) documents intended use, out-of-scope uses, data,
+performance, subgroup results, and ethical considerations.
+
+| Model | Overall observed/expected | Subgroup range | Finding |
+|---|---|---|---|
+| Logistic regression, with SDoH | 1.00 | 0.94-1.05 | Well calibrated in every group |
+| Logistic regression, without SDoH | 1.00 | **0.75-1.45** | Looks perfect overall, but under-predicts risk by 30% in high-deprivation neighborhoods and 45% for patients with housing instability |
+| GRU | **0.83** | 0.79-0.86 | Over-predicts risk by 17% for every group: selected on AUROC, which ignores calibration |
+| GRU, recalibrated on the validation set | 1.02 | 0.96-1.07 | Platt scaling fixed calibration; AUROC unchanged |
+
+Two lessons: overall calibration can hide large subgroup miscalibration that AUROC does not reveal, and
+discrimination and calibration are different properties, so a model selected on AUROC should be recalibrated
+before its probabilities are used. Because the data are synthetic, these results demonstrate the audit method,
+not the size of real-world disparities.
+
 ## How to run
 
 ```bash
@@ -102,6 +122,7 @@ python -m deepbiomarker.generate --n-patients 50000      # synthetic cohort (rep
 python -m deepbiomarker.baseline                         # logistic regression, all feature sets
 python -m deepbiomarker.model --features ehr_sdoh_prs    # GRU (also: --features ehr, ehr_sdoh; --no-time)
 python -m deepbiomarker.contributions                    # perturbation-based contribution analysis
+python -m deepbiomarker.audit                            # subgroup audit, recalibration, model card
 ```
 
 Each GRU run takes under a minute on a laptop CPU.
